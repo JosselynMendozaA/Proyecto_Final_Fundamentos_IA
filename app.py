@@ -164,7 +164,7 @@ with col_md2:
 
 st.markdown("---")
 
-# 8. Módulo de Decisiones Ejecutivas (Integración con OpenAI)
+# 8. Módulo de Decisiones Ejecutivas
 st.subheader("Modulo de Decisiones Ejecutivas")
 
 def generar_informe_ejecutivo(store, dept, year, total_annual, peak_week, peak_sales,
@@ -174,45 +174,51 @@ def generar_informe_ejecutivo(store, dept, year, total_annual, peak_week, peak_s
     promedio_festivo = df_future.loc[df_future['IsHoliday'] == 1, 'Ventas_Proyectadas'].mean()
     incremento_festivo = ((promedio_festivo - promedio_normal) / promedio_normal * 100) if promedio_normal else 0
 
-    # Extraemos la API key garantizando que sea una cadena de texto
-    api_key = None
-    try:
-        if "OPENAI_API_KEY" in st.secrets:
-            api_key = str(st.secrets["OPENAI_API_KEY"]).strip()
-    except Exception:
-        pass
+    # Lectura de la API Key en Streamlit Secrets o variable de entorno
+    api_key = st.secrets.get("OPENAI_API_KEY", None) or os.getenv("OPENAI_API_KEY")
 
     if not api_key:
-        api_key = os.getenv("OPENAI_API_KEY")
-
-    if not api_key or not isinstance(api_key, str) or not api_key.startswith("sk-"):
         return (
-            "⚠️ No se encontró una clave OPENAI_API_KEY válida configurada en Secrets. Mostrando resumen automático:\n\n"
+            "No se encontró OPENAI_API_KEY configurada. Mostrando resumen automático:\n\n"
             f"- **Proyección total anual:** ${total_annual:,.2f} USD\n"
             f"- **Semana de mayor venta:** Semana {int(peak_week)} (${peak_sales:,.2f} USD)\n"
             f"- **Impacto por festividades:** {incremento_festivo:+.1f}% vs semanas normales\n"
             f"- **Entorno Simulado:** Temperatura {temp_val}°F | Inflación CPI {cpi_val} | Desempleo {unemp_val}%\n"
         )
 
-    # Inicializamos el cliente pasando la API Key en formato string
-    client = OpenAI(api_key=api_key)
+    try:
+        # Aseguramos que se pase como string puro
+        client = OpenAI(api_key=str(api_key).strip())
 
-    prompt = (
-        f"Summarize the annual sales forecast for Store {store}, Department {dept} in year {year}. "
-        f"Total projected sales: ${total_annual:,.2f} USD. Peak sales occur at week {int(peak_week)} "
-        f"(${peak_sales:,.2f} USD). Holiday weeks perform {incremento_festivo:+.1f}% vs normal weeks. "
-        f"Environment conditions: Temperature {temp_val}°F, CPI {cpi_val}, Unemployment {unemp_val}%. "
-        f"Provide 2 concise strategic recommendations in Spanish."
-    )
+        prompt = (
+            f"Summarize the annual sales forecast for Store {store}, Department {dept} in year {year}. "
+            f"Total projected sales: ${total_annual:,.2f} USD. Peak sales occur at week {int(peak_week)} "
+            f"(${peak_sales:,.2f} USD). Holiday weeks perform {incremento_festivo:+.1f}% vs normal weeks. "
+            f"Environment conditions: Temperature {temp_val}°F, CPI {cpi_val}, Unemployment {unemp_val}%. "
+            f"Provide 2 concise strategic recommendations in Spanish."
+        )
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a Senior Financial Analyst at Walmart."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.7,
-        max_tokens=250
-    )
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a Senior Financial Analyst at Walmart."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=250
+        )
 
-    return response.choices[0].message.content
+        return response.choices[0].message.content
+
+    except Exception as e:
+        return f"❌ Error al consultar la API de OpenAI: {str(e)}"
+
+# BOTÓN DE CLIC PARA GENERAR EL INFORME CON LA IA
+if st.button("Generar Informe Financiero", use_container_width=True):
+    with st.spinner("Procesando métricas y redactando el informe gerencial..."):
+        output_report = generar_informe_ejecutivo(
+            store, dept, selected_year, total_annual, peak_week, peak_sales,
+            m1, m3, df_future, temp_val, unemp_val, cpi_val
+        )
+        st.success("Dictamen Estratégico Generado:")
+        st.markdown(output_report)
