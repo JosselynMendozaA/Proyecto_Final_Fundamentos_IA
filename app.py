@@ -174,18 +174,27 @@ def generar_informe_ejecutivo(store, dept, year, total_annual, peak_week, peak_s
     promedio_festivo = df_future.loc[df_future['IsHoliday'] == 1, 'Ventas_Proyectadas'].mean()
     incremento_festivo = ((promedio_festivo - promedio_normal) / promedio_normal * 100) if promedio_normal else 0
 
-    # Lectura de la API Key desde los Secrets de Streamlit o variables de entorno
-    api_key = st.secrets.get("OPENAI_API_KEY", None) or os.getenv("OPENAI_API_KEY")
+    # Extraemos la API key garantizando que sea una cadena de texto
+    api_key = None
+    try:
+        if "OPENAI_API_KEY" in st.secrets:
+            api_key = str(st.secrets["OPENAI_API_KEY"]).strip()
+    except Exception:
+        pass
 
     if not api_key:
+        api_key = os.getenv("OPENAI_API_KEY")
+
+    if not api_key or not isinstance(api_key, str) or not api_key.startswith("sk-"):
         return (
-            "No se encontró la clave de OpenAI en Secrets. Mostrando resumen automático:\n\n"
+            "⚠️ No se encontró una clave OPENAI_API_KEY válida configurada en Secrets. Mostrando resumen automático:\n\n"
             f"- **Proyección total anual:** ${total_annual:,.2f} USD\n"
             f"- **Semana de mayor venta:** Semana {int(peak_week)} (${peak_sales:,.2f} USD)\n"
             f"- **Impacto por festividades:** {incremento_festivo:+.1f}% vs semanas normales\n"
             f"- **Entorno Simulado:** Temperatura {temp_val}°F | Inflación CPI {cpi_val} | Desempleo {unemp_val}%\n"
         )
 
+    # Inicializamos el cliente pasando la API Key en formato string
     client = OpenAI(api_key=api_key)
 
     prompt = (
@@ -207,12 +216,3 @@ def generar_informe_ejecutivo(store, dept, year, total_annual, peak_week, peak_s
     )
 
     return response.choices[0].message.content
-
-if st.button("Generar Informe Financiero", use_container_width=True):
-    with st.spinner("Procesando métricas y redactando el informe gerencial..."):
-        output_report = generar_informe_ejecutivo(
-            store, dept, selected_year, total_annual, peak_week, peak_sales,
-            m1, m3, df_future, temp_val, unemp_val, cpi_val
-        )
-        st.success("Dictamen Estratégico Generado:")
-        st.markdown(output_report)
