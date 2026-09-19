@@ -7,6 +7,8 @@ import os
 import joblib   # Carga ligera en RAM
 import gdown    # Para descargar desde Google Drive
 from openai import OpenAI
+import json
+import urllib.request
 
 # 1. Configuración de la página
 st.set_page_config(page_title="Walmart Sales Predictor and AI Advisor", layout="wide")
@@ -174,7 +176,7 @@ def generar_informe_ejecutivo(store, dept, year, total_annual, peak_week, peak_s
     promedio_festivo = df_future.loc[df_future['IsHoliday'] == 1, 'Ventas_Proyectadas'].mean()
     incremento_festivo = ((promedio_festivo - promedio_normal) / promedio_normal * 100) if promedio_normal else 0
 
-    # 1. Obtener la API Key desde Secrets
+    # 1. Obtener la API Key desde Secrets de Streamlit
     api_key = None
     if "OPENAI_API_KEY" in st.secrets:
         api_key = str(st.secrets["OPENAI_API_KEY"]).strip()
@@ -183,40 +185,50 @@ def generar_informe_ejecutivo(store, dept, year, total_annual, peak_week, peak_s
 
     if not api_key:
         return (
-            "No se encontró la clave OPENAI_API_KEY en Secrets. Mostrando resumen automático:\n\n"
+            "⚠️ No se encontró la clave OPENAI_API_KEY en Secrets. Mostrando resumen automático:\n\n"
             f"- **Proyección total anual:** ${total_annual:,.2f} USD\n"
             f"- **Semana de mayor venta:** Semana {int(peak_week)} (${peak_sales:,.2f} USD)\n"
             f"- **Impacto por festividades:** {incremento_festivo:+.1f}% vs semanas normales\n"
             f"- **Entorno Simulado:** Temperatura {temp_val}°F | Inflación CPI {cpi_val} | Desempleo {unemp_val}%\n"
         )
 
+    # 2. Petición HTTP directa a la API de OpenAI (Garantiza cero errores de httpx / proxies)
+    url = "https://api.openai.com/v1/chat/completions"
+    
+    prompt = (
+        f"Summarize the annual sales forecast for Store {store}, Department {dept} in year {year}. "
+        f"Total projected sales: ${total_annual:,.2f} USD. Peak sales occur at week {int(peak_week)} "
+        f"(${peak_sales:,.2f} USD). Holiday weeks perform {incremento_festivo:+.1f}% vs normal weeks. "
+        f"Environment conditions: Temperature {temp_val}°F, CPI {cpi_val}, Unemployment {unemp_val}%. "
+        f"Provide 2 concise strategic recommendations in Spanish."
+    )
+
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [
+            {"role": "system", "content": "You are a Senior Financial Analyst at Walmart."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 250
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+
     try:
-        # 2. Asignar la clave a la variable de entorno para evitar incompatibilidad de httpx/proxies
-        os.environ["OPENAI_API_KEY"] = api_key
-        client = OpenAI()
-
-        prompt = (
-            f"Summarize the annual sales forecast for Store {store}, Department {dept} in year {year}. "
-            f"Total projected sales: ${total_annual:,.2f} USD. Peak sales occur at week {int(peak_week)} "
-            f"(${peak_sales:,.2f} USD). Holiday weeks perform {incremento_festivo:+.1f}% vs normal weeks. "
-            f"Environment conditions: Temperature {temp_val}°F, CPI {cpi_val}, Unemployment {unemp_val}%. "
-            f"Provide 2 concise strategic recommendations in Spanish."
-        )
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a Senior Financial Analyst at Walmart."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=250
-        )
-
-        return response.choices[0].message.content
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        
+        with urllib.request.urlopen(req) as response:
+            res_body = response.read().decode("utf-8")
+            res_json = json.loads(res_body)
+            return res_json["choices"][0]["message"]["content"]
 
     except Exception as e:
-        return f"Error al consultar la API de OpenAI: {str(e)}"
+        return f"❌ Error al consultar la API de OpenAI: {str(e)}"
 
 # BOTÓN DE CLIC PARA GENERAR EL INFORME CON LA IA
 if st.button("Generar Informe Financiero", use_container_width=True):
