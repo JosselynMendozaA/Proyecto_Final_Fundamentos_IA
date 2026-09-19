@@ -174,12 +174,16 @@ def generar_informe_ejecutivo(store, dept, year, total_annual, peak_week, peak_s
     promedio_festivo = df_future.loc[df_future['IsHoliday'] == 1, 'Ventas_Proyectadas'].mean()
     incremento_festivo = ((promedio_festivo - promedio_normal) / promedio_normal * 100) if promedio_normal else 0
 
-    # Lectura de la API Key en Streamlit Secrets o variable de entorno
-    api_key = st.secrets.get("OPENAI_API_KEY", None) or os.getenv("OPENAI_API_KEY")
+    # 1. Obtener la API Key desde Secrets
+    api_key = None
+    if "OPENAI_API_KEY" in st.secrets:
+        api_key = str(st.secrets["OPENAI_API_KEY"]).strip()
+    elif os.getenv("OPENAI_API_KEY"):
+        api_key = str(os.getenv("OPENAI_API_KEY")).strip()
 
     if not api_key:
         return (
-            "No se encontró OPENAI_API_KEY configurada. Mostrando resumen automático:\n\n"
+            "No se encontró la clave OPENAI_API_KEY en Secrets. Mostrando resumen automático:\n\n"
             f"- **Proyección total anual:** ${total_annual:,.2f} USD\n"
             f"- **Semana de mayor venta:** Semana {int(peak_week)} (${peak_sales:,.2f} USD)\n"
             f"- **Impacto por festividades:** {incremento_festivo:+.1f}% vs semanas normales\n"
@@ -187,8 +191,9 @@ def generar_informe_ejecutivo(store, dept, year, total_annual, peak_week, peak_s
         )
 
     try:
-        # Aseguramos que se pase como string puro
-        client = OpenAI(api_key=str(api_key).strip())
+        # 2. Asignar la clave a la variable de entorno para evitar incompatibilidad de httpx/proxies
+        os.environ["OPENAI_API_KEY"] = api_key
+        client = OpenAI()
 
         prompt = (
             f"Summarize the annual sales forecast for Store {store}, Department {dept} in year {year}. "
@@ -211,7 +216,7 @@ def generar_informe_ejecutivo(store, dept, year, total_annual, peak_week, peak_s
         return response.choices[0].message.content
 
     except Exception as e:
-        return f"❌ Error al consultar la API de OpenAI: {str(e)}"
+        return f"Error al consultar la API de OpenAI: {str(e)}"
 
 # BOTÓN DE CLIC PARA GENERAR EL INFORME CON LA IA
 if st.button("Generar Informe Financiero", use_container_width=True):
