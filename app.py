@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
-from pycaret.regression import load_model, predict_model
+import joblib  # Carga ligera en RAM
 from openai import OpenAI
 
 # 1. Configuración de la página
@@ -13,13 +13,18 @@ st.set_page_config(page_title="Walmart Sales Predictor and AI Advisor", layout="
 st.title("Walmart Sales Forecasting and Executive AI Advisor")
 st.markdown("Plataforma interactiva para proyección de ventas e impacto de promociones.")
 
-# 2. Cargar recursos
+# 2. Cargar recursos optimizados (Evita colapso de RAM)
 @st.cache_resource
 def load_resources():
-    model = load_model('walmart_best_model_compressed')
-    return model
+    return joblib.load('walmart_best_model_compressed.pkl')
 
 model = load_resources()
+
+# Función auxiliar para realizar predicciones directamente con el modelo cargado
+def predict_model_direct(model, data):
+    data_copy = data.copy()
+    data_copy['prediction_label'] = model.predict(data_copy)
+    return data_copy
 
 # 3. Barra Lateral: Parámetros del Escenario
 st.sidebar.header("Configuracion del Escenario")
@@ -32,7 +37,7 @@ store_size = {"Tipo A (Grande)": 180000, "Tipo B (Mediana)": 100000, "Tipo C (Pe
 
 selected_year = st.sidebar.selectbox("Año a Simular", [2024, 2025, 2026])
 
-# SECCIÓN NUEVA: Clima y Macroeconomía
+# SECCIÓN: Clima y Macroeconomía
 st.sidebar.markdown("---")
 with st.sidebar.expander("🌡️ Clima y Entorno Economico", expanded=True):
     temp_val = st.slider("Temperatura Promedio (°F)", 20.0, 100.0, 65.0)
@@ -66,7 +71,7 @@ for w in weeks:
     })
 
 df_future = pd.DataFrame(future_data)
-predictions = predict_model(model, data=df_future)
+predictions = predict_model_direct(model, df_future)
 df_future['Ventas_Proyectadas'] = predictions['prediction_label']
 
 # 5. Tarjetas de Métricas (KPIs)
@@ -130,7 +135,7 @@ with col_md2:
     for b in budget_range:
         temp_row = df_future.iloc[0:1].copy()
         temp_row['MarkDown1'] = b
-        pred = predict_model(model, data=temp_row)['prediction_label'].iloc[0]
+        pred = predict_model_direct(model, temp_row)['prediction_label'].iloc[0]
         simulated_sales.append(pred)
 
     fig3, ax3 = plt.subplots(figsize=(6, 3.5))
