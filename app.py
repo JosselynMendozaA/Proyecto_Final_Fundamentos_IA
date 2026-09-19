@@ -15,8 +15,8 @@ st.title("Walmart Sales Forecasting and Executive AI Advisor")
 st.markdown("Plataforma interactiva para proyección de ventas e impacto de promociones.")
 
 # 2. Cargar recursos optimizados desde Google Drive
-FILE_ID = '1tshTEVLgK-qxPkp7jBeOu652Um_5Nrll'
-MODEL_PATH = 'walmart_best_model_compressed.pkl'
+FILE_ID = '1me7EMly1Q-yD4YsxOlIB-P0bZYlcbAUs'
+MODEL_PATH = 'walmart_model_light.pkl'
 
 @st.cache_resource
 def load_resources():
