@@ -16,7 +16,7 @@ st.markdown("Plataforma interactiva para proyección de ventas e impacto de prom
 # 2. Cargar recursos
 @st.cache_resource
 def load_resources():
-    model = load_model('walmart_best_model')
+    model = load_model('walmart_best_model_compressed')
     return model
 
 model = load_resources()
