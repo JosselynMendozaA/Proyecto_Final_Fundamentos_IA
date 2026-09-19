@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 import joblib  # Carga ligera en RAM
+import gdown   # Para descargar desde Google Drive
 from openai import OpenAI
 
 # 1. Configuración de la página
@@ -13,10 +14,18 @@ st.set_page_config(page_title="Walmart Sales Predictor and AI Advisor", layout="
 st.title("Walmart Sales Forecasting and Executive AI Advisor")
 st.markdown("Plataforma interactiva para proyección de ventas e impacto de promociones.")
 
-# 2. Cargar recursos optimizados (Evita colapso de RAM)
+# 2. Cargar recursos optimizados desde Google Drive
+FILE_ID = '1tshTEVLgK-qxPkp7jBeOu652Um_5Nrll'
+MODEL_PATH = 'walmart_best_model_compressed.pkl'
+
 @st.cache_resource
 def load_resources():
-    return joblib.load('walmart_best_model_compressed.pkl')
+    # Descarga el modelo solo si no existe localmente en el servidor
+    if not os.path.exists(MODEL_PATH):
+        url = f'https://drive.google.com/uc?id={FILE_ID}'
+        gdown.download(url, MODEL_PATH, quiet=False)
+    
+    return joblib.load(MODEL_PATH)
 
 model = load_resources()
 
