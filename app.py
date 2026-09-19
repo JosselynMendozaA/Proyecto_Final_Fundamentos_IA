@@ -4,8 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
-import joblib  # Carga ligera en RAM
-import gdown   # Para descargar desde Google Drive
+import joblib   # Carga ligera en RAM
+import gdown    # Para descargar desde Google Drive
 from openai import OpenAI
 
 # 1. Configuración de la página
@@ -29,9 +29,17 @@ def load_resources():
 
 model = load_resources()
 
-# Función auxiliar para realizar predicciones directamente con el modelo cargado
+# Función auxiliar para realizar predicciones limpiando columnas no entrenadas
 def predict_model_direct(model, data):
     data_copy = data.copy()
+    
+    # Eliminamos columnas creadas para las gráficas que el modelo no conoce
+    cols_to_drop = ['Ventas_Proyectadas', 'Festivo_Texto', 'prediction_label']
+    for col in cols_to_drop:
+        if col in data_copy.columns:
+            data_copy = data_copy.drop(columns=[col])
+            
+    # Asignamos la predicción
     data_copy['prediction_label'] = model.predict(data_copy)
     return data_copy
 
@@ -156,7 +164,7 @@ with col_md2:
 
 st.markdown("---")
 
-# 8. Módulo de Decisiones Ejecutivas
+# 8. Módulo de Decisiones Ejecutivas (Integración con OpenAI)
 st.subheader("Modulo de Decisiones Ejecutivas")
 
 def generar_informe_ejecutivo(store, dept, year, total_annual, peak_week, peak_sales,
@@ -166,11 +174,12 @@ def generar_informe_ejecutivo(store, dept, year, total_annual, peak_week, peak_s
     promedio_festivo = df_future.loc[df_future['IsHoliday'] == 1, 'Ventas_Proyectadas'].mean()
     incremento_festivo = ((promedio_festivo - promedio_normal) / promedio_normal * 100) if promedio_normal else 0
 
-    api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", None)
+    # Lectura de la API Key desde los Secrets de Streamlit o variables de entorno
+    api_key = st.secrets.get("OPENAI_API_KEY", None) or os.getenv("OPENAI_API_KEY")
 
     if not api_key:
         return (
-            "No se encontró OPENAI_API_KEY configurada. Mostrando resumen automático:\n\n"
+            "No se encontró la clave de OpenAI en Secrets. Mostrando resumen automático:\n\n"
             f"- **Proyección total anual:** ${total_annual:,.2f} USD\n"
             f"- **Semana de mayor venta:** Semana {int(peak_week)} (${peak_sales:,.2f} USD)\n"
             f"- **Impacto por festividades:** {incremento_festivo:+.1f}% vs semanas normales\n"
