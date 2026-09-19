@@ -6,4 +6,5 @@ seaborn==0.13.2
 scikit-learn==1.4.2
 pycaret[full]==3.3.2
 openai==1.51.0
+gdown
  
